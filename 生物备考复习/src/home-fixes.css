@@ -1,0 +1,11 @@
+.countdown {
+  gap: 8px;
+}
+
+.countdown strong {
+  font-size: 38px;
+}
+
+.countdown em {
+  font-size: 27px;
+}
