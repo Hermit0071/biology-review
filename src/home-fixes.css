@@ -1,0 +1,26 @@
+.countdown {
+  gap: 8px;
+}
+
+.countdown strong {
+  font-size: 38px;
+}
+
+.countdown em {
+  font-size: 27px;
+}
+
+.countdown-expired {
+  align-items: flex-end;
+}
+
+.countdown-expired div strong {
+  font-family: STSong, "Songti SC", serif;
+  font-size: 25px;
+}
+
+.countdown-expired .text-button {
+  flex: none;
+  margin-bottom: 1px;
+  font-size: 12px;
+}

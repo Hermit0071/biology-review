@@ -1,0 +1,1034 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7fbff" />
+  <meta name="description" content="有丝分裂与减数分裂交互动画模型：追踪染色体行为、细胞数量和 n/C 变化。" />
+  <title>双分裂实验室｜有丝分裂 × 减数分裂</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #18203a;
+      --muted: #68708b;
+      --line: rgba(87, 101, 145, .15);
+      --glass: rgba(255, 255, 255, .58);
+      --glass-strong: rgba(255, 255, 255, .76);
+      --shadow: 0 24px 70px rgba(78, 88, 147, .15), 0 3px 14px rgba(70, 82, 133, .08);
+      --blue: #2774ff;
+      --cyan: #20cae7;
+      --pink: #ff4f9a;
+      --orange: #ff984a;
+      --green: #33cf8e;
+      --violet: #8b5cf6;
+      --yellow: #ffd45a;
+      --radius-xl: 32px;
+      --radius-lg: 24px;
+      --radius-md: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100vh;
+      overflow-x: hidden;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 0%, rgba(77, 218, 255, .32), transparent 30%),
+        radial-gradient(circle at 96% 10%, rgba(255, 95, 171, .23), transparent 28%),
+        radial-gradient(circle at 55% 96%, rgba(143, 111, 255, .20), transparent 36%),
+        linear-gradient(145deg, #f8fdff 0%, #f6f5ff 47%, #fff8fc 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, input { font: inherit; }
+    button { color: inherit; }
+    a { color: inherit; }
+
+    .ambient {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: -1;
+    }
+    .orb {
+      position: absolute;
+      border-radius: 999px;
+      filter: blur(8px);
+      opacity: .7;
+      animation: drift 15s ease-in-out infinite alternate;
+    }
+    .orb.one { width: 240px; height: 240px; left: -80px; top: 24%; background: rgba(44, 205, 245, .18); }
+    .orb.two { width: 310px; height: 310px; right: -110px; top: 40%; background: rgba(255, 76, 156, .14); animation-delay: -5s; }
+    .orb.three { width: 210px; height: 210px; left: 45%; bottom: -100px; background: rgba(139, 92, 246, .16); animation-delay: -9s; }
+    @keyframes drift { to { transform: translate3d(24px, -28px, 0) scale(1.08); } }
+
+    .app {
+      width: min(1480px, calc(100% - 36px));
+      margin: 0 auto;
+      padding: max(18px, env(safe-area-inset-top)) 0 max(42px, env(safe-area-inset-bottom));
+    }
+
+    .glass {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, .82);
+      background: linear-gradient(145deg, rgba(255,255,255,.74), rgba(255,255,255,.43));
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.95);
+      -webkit-backdrop-filter: blur(30px) saturate(160%);
+      backdrop-filter: blur(30px) saturate(160%);
+    }
+    .glass::before {
+      content: "";
+      position: absolute;
+      left: 10%; right: 10%; top: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.95), transparent);
+      pointer-events: none;
+    }
+
+    .topbar {
+      min-height: 82px;
+      padding: 14px 16px 14px 20px;
+      border-radius: 28px;
+      display: grid;
+      grid-template-columns: minmax(280px, 1fr) auto minmax(190px, 1fr);
+      align-items: center;
+      gap: 18px;
+      position: sticky;
+      top: max(12px, env(safe-area-inset-top));
+      z-index: 20;
+    }
+    .brand { display: flex; align-items: center; gap: 13px; min-width: 0; }
+    .brand-mark {
+      width: 50px; height: 50px;
+      flex: 0 0 auto;
+      border-radius: 17px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(140deg, #5b8cff, #8b5cf6 55%, #ff62a8);
+      box-shadow: 0 12px 24px rgba(92, 99, 235, .25), inset 0 1px 1px rgba(255,255,255,.8);
+    }
+    .brand-mark svg { width: 31px; height: 31px; }
+    .brand-copy { min-width: 0; }
+    .brand-copy strong { display: block; font-size: 17px; letter-spacing: -.02em; }
+    .brand-copy span { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .segmented {
+      display: flex;
+      gap: 4px;
+      padding: 5px;
+      border-radius: 18px;
+      background: rgba(110, 119, 155, .10);
+      box-shadow: inset 0 1px 5px rgba(75, 86, 132, .08);
+    }
+    .segmented button {
+      border: 0;
+      border-radius: 14px;
+      padding: 10px 18px;
+      background: transparent;
+      font-weight: 750;
+      font-size: 14px;
+      cursor: pointer;
+      transition: .25s ease;
+    }
+    .segmented button[aria-selected="true"] {
+      color: #fff;
+      background: linear-gradient(135deg, var(--blue), #7467ef);
+      box-shadow: 0 7px 18px rgba(55, 103, 230, .27), inset 0 1px 1px rgba(255,255,255,.42);
+    }
+    .top-meta { display: flex; justify-content: flex-end; align-items: center; gap: 9px; }
+    .live-pill {
+      display: flex; align-items: center; gap: 7px;
+      border: 1px solid rgba(50, 202, 143, .22);
+      border-radius: 999px;
+      padding: 8px 11px;
+      background: rgba(234, 255, 246, .66);
+      color: #17835d;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 5px rgba(51,207,142,.13); }
+    .source-button {
+      width: 38px; height: 38px;
+      border: 1px solid rgba(100, 111, 150, .13);
+      border-radius: 13px;
+      background: rgba(255,255,255,.58);
+      cursor: pointer;
+      display: grid; place-items: center;
+    }
+
+    .hero {
+      padding: 46px 8px 26px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      align-items: end;
+    }
+    .eyebrow { color: var(--blue); font-size: 12px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    .hero h1 { margin: 11px 0 10px; font-size: clamp(33px, 5vw, 66px); line-height: .98; letter-spacing: -.055em; max-width: 900px; }
+    .hero h1 .accent { background: linear-gradient(110deg, #2478ff, #8b5cf6 48%, #ff4f9a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .hero p { margin: 0; max-width: 760px; color: var(--muted); line-height: 1.75; font-size: 15px; }
+    .hero-note {
+      display: flex; gap: 8px; align-items: center;
+      padding: 10px 13px;
+      border-radius: 15px;
+      color: #6d5b19;
+      background: rgba(255, 244, 188, .62);
+      border: 1px solid rgba(236, 188, 52, .20);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1.72fr) minmax(320px, .72fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .model-card { border-radius: var(--radius-xl); padding: 18px; }
+    .model-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 4px 4px 15px; }
+    .stage-identity { min-width: 0; }
+    .stage-identity span { color: var(--muted); font-size: 12px; font-weight: 700; }
+    .stage-identity strong { display: block; margin-top: 4px; font-size: 21px; letter-spacing: -.025em; }
+    .count-badges { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+    .count-badge { padding: 7px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; background: rgba(255,255,255,.68); border: 1px solid var(--line); }
+    .count-badge.primary { color: #fff; background: linear-gradient(135deg, #7867f2, #a65df3); border-color: transparent; }
+
+    .scene-wrap {
+      position: relative;
+      border-radius: 25px;
+      min-height: 500px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 45%, rgba(255,255,255,.94) 0 10%, rgba(255,255,255,.54) 54%, transparent 75%),
+        linear-gradient(145deg, rgba(225,247,255,.72), rgba(246,237,255,.68) 48%, rgba(255,236,246,.72));
+      border: 1px solid rgba(255,255,255,.92);
+      box-shadow: inset 0 1px 14px rgba(104, 119, 170, .08);
+      isolation: isolate;
+    }
+    .scene-wrap::after {
+      content: "";
+      position: absolute; inset: 0;
+      background-image: radial-gradient(rgba(72, 94, 153, .10) .8px, transparent .8px);
+      background-size: 22px 22px;
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,.38), transparent 76%);
+      z-index: -1;
+    }
+    #scene { width: 100%; height: 500px; display: block; }
+    #scene text { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+    .scene-label { font-size: 13px; font-weight: 750; fill: #3f4868; paint-order: stroke; stroke: rgba(255,255,255,.88); stroke-width: 4px; stroke-linejoin: round; }
+    .scene-small { font-size: 11px; fill: #69708b; font-weight: 700; }
+    .membrane { fill: url(#cellGradient); stroke: rgba(66, 144, 233, .40); stroke-width: 3; }
+    .nucleus { fill: rgba(255,255,255,.40); stroke: rgba(113, 98, 211, .30); stroke-width: 2.5; stroke-dasharray: 7 7; }
+    .spindle { stroke: rgba(53, 150, 196, .38); stroke-width: 2; fill: none; }
+    .equator { stroke: rgba(103, 91, 211, .24); stroke-width: 2; stroke-dasharray: 6 8; }
+    .pole { fill: #24c6df; stroke: rgba(255,255,255,.8); stroke-width: 3; }
+    .chromatid { fill: none; stroke-linecap: round; stroke-linejoin: round; filter: url(#chromosomeShadow); }
+    .centromere { stroke: rgba(255,255,255,.78); stroke-width: 2.2; }
+    .callout-line { stroke: rgba(71, 85, 130, .42); stroke-width: 1.5; stroke-dasharray: 4 4; }
+
+    .scene-chip {
+      position: absolute;
+      left: 16px; top: 16px;
+      z-index: 3;
+      display: flex; align-items: center; gap: 7px;
+      padding: 8px 11px;
+      border-radius: 14px;
+      background: rgba(255,255,255,.66);
+      border: 1px solid rgba(255,255,255,.86);
+      box-shadow: 0 8px 20px rgba(76, 88, 135, .09);
+      -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+      font-size: 11px; font-weight: 750; color: var(--muted);
+    }
+    .scene-chip i { width: 7px; height: 7px; border-radius: 50%; background: var(--pink); box-shadow: 0 0 0 4px rgba(255,79,154,.12); }
+    .shuffle {
+      position: absolute;
+      right: 16px; top: 16px;
+      z-index: 3;
+      border: 1px solid rgba(255,255,255,.88);
+      background: rgba(255,255,255,.63);
+      border-radius: 14px;
+      padding: 8px 11px;
+      box-shadow: 0 8px 20px rgba(76, 88, 135, .09);
+      cursor: pointer;
+      font-size: 11px; font-weight: 750;
+      -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+    }
+    .shuffle[hidden] { display: none; }
+
+    .legend { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 13px 6px 4px; }
+    .legend span { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; font-weight: 650; }
+    .legend i { width: 18px; height: 5px; border-radius: 99px; }
+    .legend .swap { margin-left: auto; color: #8651d1; }
+
+    .transport {
+      margin-top: 12px;
+      padding: 12px 14px;
+      display: grid;
+      grid-template-columns: auto minmax(120px, 1fr) auto;
+      align-items: center;
+      gap: 14px;
+      border-radius: 22px;
+      background: rgba(255,255,255,.56);
+      border: 1px solid rgba(255,255,255,.76);
+    }
+    .transport-buttons { display: flex; gap: 7px; }
+    .icon-button {
+      width: 40px; height: 40px;
+      display: grid; place-items: center;
+      border: 1px solid rgba(91, 104, 149, .14);
+      border-radius: 14px;
+      background: rgba(255,255,255,.70);
+      cursor: pointer;
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .icon-button:hover { transform: translateY(-1px); box-shadow: 0 7px 16px rgba(65,78,135,.12); }
+    .icon-button.play { color: #fff; border-color: transparent; background: linear-gradient(140deg, var(--blue), #7b65ef); box-shadow: 0 8px 18px rgba(55,101,224,.25); }
+    .progress-zone { display: grid; gap: 7px; }
+    .progress-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; font-weight: 700; }
+    input[type="range"] { width: 100%; accent-color: var(--violet); cursor: pointer; }
+    .speed { display: flex; gap: 4px; padding: 4px; border-radius: 13px; background: rgba(106,115,151,.09); }
+    .speed button { border: 0; border-radius: 10px; padding: 7px 9px; background: transparent; color: var(--muted); font-size: 10px; font-weight: 800; cursor: pointer; }
+    .speed button.active { background: #fff; color: var(--blue); box-shadow: 0 4px 12px rgba(71,83,133,.12); }
+
+    .timeline {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 4px 2px 7px;
+      scrollbar-width: thin;
+    }
+    .stage-button {
+      flex: 1 0 130px;
+      min-width: 0;
+      text-align: left;
+      border: 1px solid rgba(92, 103, 149, .13);
+      border-radius: 16px;
+      padding: 10px 11px;
+      background: rgba(255,255,255,.48);
+      cursor: pointer;
+      transition: .22s ease;
+    }
+    .stage-button span { display: block; margin-bottom: 4px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .09em; }
+    .stage-button strong { display: block; font-size: 11px; white-space: nowrap; }
+    .stage-button.active { color: #fff; border-color: transparent; background: linear-gradient(135deg, #2878ff, #7b66ef 70%, #a15fe5); box-shadow: 0 9px 20px rgba(70,93,207,.22); transform: translateY(-1px); }
+    .stage-button.active span { color: rgba(255,255,255,.72); }
+
+    .side { display: grid; gap: 14px; }
+    .info-card { border-radius: var(--radius-lg); padding: 22px; }
+    .info-kicker { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--blue); font-size: 11px; font-weight: 850; letter-spacing: .10em; }
+    .stage-index { color: var(--muted); letter-spacing: 0; }
+    .info-card h2 { margin: 11px 0 9px; font-size: 28px; letter-spacing: -.04em; }
+    .info-card > p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.75; }
+    .focus-box {
+      margin-top: 17px;
+      padding: 14px;
+      border-radius: 17px;
+      background: linear-gradient(135deg, rgba(226,244,255,.76), rgba(241,233,255,.74));
+      border: 1px solid rgba(102,125,210,.10);
+    }
+    .focus-box span { display: block; margin-bottom: 5px; color: #7562ce; font-size: 10px; font-weight: 850; letter-spacing: .12em; }
+    .focus-box strong { font-size: 13px; line-height: 1.55; }
+    .event-list { list-style: none; padding: 0; margin: 17px 0 0; display: grid; gap: 10px; }
+    .event-list li { position: relative; padding-left: 21px; color: #444d6b; font-size: 12px; line-height: 1.55; }
+    .event-list li::before { content: ""; position: absolute; left: 0; top: .48em; width: 9px; height: 9px; border-radius: 50%; background: linear-gradient(135deg, var(--cyan), var(--blue)); box-shadow: 0 0 0 4px rgba(44,160,236,.10); }
+
+    .quantity-card { border-radius: var(--radius-lg); padding: 17px; }
+    .quantity-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .quantity-head strong { font-size: 13px; }
+    .quantity-head span { color: var(--muted); font-size: 10px; }
+    .quantity-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .quantity { padding: 12px 9px; border-radius: 16px; text-align: center; background: rgba(255,255,255,.56); border: 1px solid rgba(91,103,149,.10); }
+    .quantity span { display: block; color: var(--muted); font-size: 9px; font-weight: 700; }
+    .quantity strong { display: block; margin-top: 5px; font-size: 19px; letter-spacing: -.03em; }
+
+    .exam-card {
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      background: linear-gradient(145deg, rgba(255,251,229,.77), rgba(255,240,247,.58));
+      border-color: rgba(255,255,255,.84);
+    }
+    .exam-title { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 850; color: #9a6517; }
+    .exam-card p { margin: 9px 0 0; color: #75643d; font-size: 12px; line-height: 1.7; }
+
+    .compare-card { margin-top: 18px; border-radius: var(--radius-xl); padding: 22px; }
+    .compare-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; margin-bottom: 16px; }
+    .compare-head h3 { margin: 5px 0 0; font-size: 24px; letter-spacing: -.035em; }
+    .compare-head p { margin: 0; color: var(--muted); font-size: 12px; }
+    .compare-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 1px; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--line); }
+    .compare-grid > div { min-height: 48px; padding: 12px; background: rgba(255,255,255,.67); font-size: 12px; line-height: 1.5; }
+    .compare-grid .th { font-weight: 850; color: #fff; background: linear-gradient(135deg, #4e84ed, #7969e9); }
+    .compare-grid .label { color: var(--muted); font-weight: 750; }
+    .same-banner { margin-top: 12px; padding: 13px 15px; border-radius: 16px; background: rgba(231,251,245,.7); color: #25775b; font-size: 12px; line-height: 1.6; border: 1px solid rgba(43,189,136,.13); }
+
+    .chart-card { margin-top: 18px; border-radius: var(--radius-xl); padding: 22px; }
+    .chart-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
+    .chart-head h3 { margin: 5px 0 0; font-size: 24px; letter-spacing: -.035em; }
+    .chart-head p { max-width: 560px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; text-align: right; }
+    .chart-legend { display: flex; gap: 9px; flex-wrap: wrap; margin: 17px 0 10px; }
+    .chart-legend span { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: 12px; background: rgba(255,255,255,.58); border: 1px solid rgba(91,103,149,.10); color: #535d7b; font-size: 11px; font-weight: 760; }
+    .chart-legend i { width: 18px; height: 5px; border-radius: 999px; }
+    .chart-scroll { overflow-x: auto; border-radius: 21px; background: linear-gradient(145deg, rgba(238,249,255,.70), rgba(251,242,255,.66)); border: 1px solid rgba(255,255,255,.88); scrollbar-width: thin; }
+    #quantityChart { display: block; width: 100%; min-width: 760px; height: auto; }
+    .chart-grid-line { stroke: rgba(75, 91, 140, .12); stroke-width: 1; }
+    .chart-axis { stroke: rgba(61, 73, 115, .32); stroke-width: 1.5; }
+    .chart-axis-text { fill: #717992; font-size: 12px; font-weight: 700; }
+    .chart-stage-text { fill: #505a78; font-size: 12px; font-weight: 750; }
+    .chart-path { fill: none; stroke-width: 5.5; stroke-linecap: round; stroke-linejoin: round; filter: url(#chartShadow); }
+    .chart-value { font-size: 11px; font-weight: 850; paint-order: stroke; stroke: rgba(255,255,255,.94); stroke-width: 4px; stroke-linejoin: round; }
+    .chart-current-label { fill: #6557c9; font-size: 11px; font-weight: 850; }
+    .chart-foot { display: flex; align-items: flex-start; gap: 9px; margin-top: 12px; padding: 12px 14px; border-radius: 16px; background: rgba(255,255,255,.48); color: var(--muted); font-size: 11px; line-height: 1.65; }
+    .chart-foot strong { color: #5e53b7; white-space: nowrap; }
+
+    .references { margin-top: 18px; border-radius: var(--radius-xl); padding: 22px; }
+    .references summary { cursor: pointer; font-weight: 850; font-size: 13px; }
+    .references p { color: var(--muted); font-size: 11px; line-height: 1.75; }
+    .reference-links { display: flex; gap: 8px; flex-wrap: wrap; }
+    .reference-links a { text-decoration: none; padding: 8px 11px; border-radius: 12px; background: rgba(255,255,255,.62); border: 1px solid var(--line); color: #53618f; font-size: 11px; font-weight: 700; }
+    footer { padding: 20px 8px 0; text-align: center; color: var(--muted); font-size: 10px; }
+
+    .toast {
+      position: fixed;
+      left: 50%; bottom: max(22px, env(safe-area-inset-bottom));
+      transform: translate(-50%, 20px);
+      z-index: 50;
+      padding: 11px 16px;
+      border: 1px solid rgba(255,255,255,.86);
+      border-radius: 16px;
+      color: #fff;
+      background: rgba(35, 40, 67, .76);
+      box-shadow: 0 15px 35px rgba(34,39,73,.23);
+      -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+      opacity: 0;
+      pointer-events: none;
+      transition: .25s ease;
+      font-size: 12px;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    @media (max-width: 1050px) {
+      .workspace { grid-template-columns: 1fr; }
+      .side { grid-template-columns: 1.2fr .8fr; }
+      .side .info-card { grid-row: span 2; }
+      .topbar { grid-template-columns: 1fr auto; }
+      .segmented { grid-row: 2; grid-column: 1 / -1; width: 100%; }
+      .segmented button { flex: 1; }
+      .top-meta { grid-column: 2; grid-row: 1; }
+    }
+    @media (max-width: 720px) {
+      .app { width: min(100% - 20px, 1480px); padding-top: 10px; }
+      .topbar { padding: 12px; border-radius: 23px; gap: 10px; }
+      .brand-mark { width: 44px; height: 44px; border-radius: 14px; }
+      .brand-copy span, .live-pill span { display: none; }
+      .hero { padding: 32px 4px 20px; grid-template-columns: 1fr; }
+      .hero-note { width: fit-content; }
+      .workspace { gap: 12px; }
+      .model-card { padding: 10px; border-radius: 25px; }
+      .model-head { padding: 8px 5px 12px; align-items: flex-start; }
+      .stage-identity strong { font-size: 17px; }
+      .count-badges { max-width: 150px; }
+      .scene-wrap, #scene { min-height: 390px; height: 390px; }
+      .legend { gap: 9px 12px; }
+      .legend .swap { width: 100%; margin: 0; }
+      .transport { grid-template-columns: 1fr auto; gap: 10px; }
+      .progress-zone { grid-column: 1 / -1; grid-row: 2; }
+      .transport-buttons { grid-column: 1; }
+      .speed { grid-column: 2; grid-row: 1; }
+      .side { grid-template-columns: 1fr; }
+      .side .info-card { grid-row: auto; }
+      .compare-head { display: block; }
+      .compare-head p { margin-top: 8px; }
+      .compare-grid { grid-template-columns: .8fr 1fr 1fr; }
+      .compare-grid > div { padding: 9px 7px; font-size: 10px; }
+      .chart-card { padding: 16px 12px; border-radius: 25px; }
+      .chart-head { display: block; padding: 0 4px; }
+      .chart-head p { margin-top: 8px; text-align: left; }
+      .chart-legend { padding: 0 4px; }
+      #quantityChart { min-width: 720px; }
+      .chart-foot { display: block; }
+      .chart-foot strong { display: block; margin-bottom: 4px; }
+      .shuffle { top: auto; bottom: 12px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"><span class="orb one"></span><span class="orb two"></span><span class="orb three"></span></div>
+  <div class="app">
+    <header class="topbar glass">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="14" stroke="white" stroke-width="2.2" opacity=".92"/><path d="M12 20c3.2-6.8 12.8-6.8 16 0-3.2 6.8-12.8 6.8-16 0Z" stroke="white" stroke-width="2"/><circle cx="20" cy="20" r="3.2" fill="white"/></svg>
+        </div>
+        <div class="brand-copy"><strong>双分裂实验室</strong><span>Chromosome Motion Studio</span></div>
+      </div>
+      <nav class="segmented" role="tablist" aria-label="选择细胞分裂模型">
+        <button id="mitosisTab" role="tab" aria-selected="true" aria-controls="modelPanel" data-mode="mitosis">有丝分裂</button>
+        <button id="meiosisTab" role="tab" aria-selected="false" aria-controls="modelPanel" data-mode="meiosis">减数分裂</button>
+      </nav>
+      <div class="top-meta">
+        <div class="live-pill"><i class="live-dot"></i><span>教材模型已校准</span></div>
+        <button class="source-button" id="sourceJump" aria-label="查看资料依据" title="资料依据">⌁</button>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Interactive cell division · 2n = 4</div>
+        <h1>看见染色体，<span class="accent">真正动起来</span></h1>
+        <p>用明亮颜色追踪两对同源染色体。播放、拖动或逐阶段观察联会、排列与分离，同时锁定染色体组、DNA 含量和细胞数量的变化。</p>
+      </div>
+      <div class="hero-note"><span>✦</span> 教学性简化 · 不代表真实比例</div>
+    </section>
+
+    <main id="modelPanel" class="workspace" role="tabpanel" aria-labelledby="mitosisTab">
+      <section class="model-card glass" aria-label="细胞分裂动画模型">
+        <div class="model-head">
+          <div class="stage-identity"><span id="modeLabel">MITOSIS · 有丝分裂</span><strong id="stageTitleTop">间期：DNA 复制</strong></div>
+          <div class="count-badges"><span class="count-badge primary" id="ploidyBadge">2n · 2C → 4C</span><span class="count-badge" id="cellBadge">1 个细胞</span></div>
+        </div>
+
+        <div class="scene-wrap">
+          <div class="scene-chip"><i></i><span id="sceneHint">DNA 以染色质形态完成复制</span></div>
+          <button class="shuffle" id="shuffleBtn" hidden>↻ 重排同源组合</button>
+          <svg id="scene" viewBox="0 0 900 560" role="img" aria-labelledby="sceneTitle sceneDesc" preserveAspectRatio="xMidYMid meet">
+            <title id="sceneTitle">有丝分裂间期 DNA 复制动画</title>
+            <desc id="sceneDesc">一个二倍体细胞中的 DNA 以松散染色质形态复制，尚未凝缩为染色体。</desc>
+            <defs>
+              <linearGradient id="cellGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".72"/><stop offset=".55" stop-color="#dff7ff" stop-opacity=".47"/><stop offset="1" stop-color="#eadfff" stop-opacity=".52"/></linearGradient>
+              <filter id="chromosomeShadow" x="-80%" y="-80%" width="260%" height="260%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#56609a" flood-opacity=".18"/></filter>
+              <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <g id="sceneContent"></g>
+          </svg>
+        </div>
+
+        <div class="legend" aria-label="染色体颜色图例">
+          <span><i style="background:#ff4f9a"></i>母源染色体</span>
+          <span><i style="background:#2785ff"></i>父源染色体</span>
+          <span class="swap" id="legendNote">颜色只表示来源，长短表示不同染色体</span>
+        </div>
+
+        <div class="transport">
+          <div class="transport-buttons">
+            <button class="icon-button" id="prevBtn" aria-label="上一个阶段" title="上一个阶段">‹</button>
+            <button class="icon-button play" id="playBtn" aria-label="暂停动画" title="播放或暂停">Ⅱ</button>
+            <button class="icon-button" id="nextBtn" aria-label="下一个阶段" title="下一个阶段">›</button>
+          </div>
+          <div class="progress-zone">
+            <div class="progress-meta"><span id="progressName">间期</span><span id="progressCount">01 / 05</span></div>
+            <input id="progress" type="range" min="0" max="1000" value="0" aria-label="动画进度" />
+          </div>
+          <div class="speed" aria-label="播放速度">
+            <button data-speed="0.6">0.5×</button><button class="active" data-speed="1">1×</button><button data-speed="1.7">2×</button>
+          </div>
+        </div>
+        <div class="timeline" id="timeline" aria-label="分裂阶段"></div>
+      </section>
+
+      <aside class="side">
+        <section class="info-card glass" aria-live="polite">
+          <div class="info-kicker"><span id="phaseFamily">分裂准备</span><span class="stage-index" id="stageIndex">阶段 1 / 5</span></div>
+          <h2 id="stageTitle">间期：DNA 复制</h2>
+          <p id="stageSummary">细胞在 S 期以松散染色质形态复制 DNA。</p>
+          <div class="focus-box"><span>这一帧看哪里</span><strong id="stageFocus">核膜完整，DNA 是伸展的染色质丝；此时不会提前出现清晰的 X 形染色体。</strong></div>
+          <ul class="event-list" id="eventList"></ul>
+        </section>
+
+        <section class="quantity-card glass">
+          <div class="quantity-head"><strong>单个细胞 / 细胞核计数</strong><span>n 为染色体组 · C 为 DNA 含量</span></div>
+          <div class="quantity-grid">
+            <div class="quantity"><span>染色体组</span><strong id="qPloidy">2n</strong></div>
+            <div class="quantity"><span>DNA 含量</span><strong id="qDNA">2C → 4C</strong></div>
+            <div class="quantity"><span>细胞数量</span><strong id="qCells">1</strong></div>
+          </div>
+        </section>
+
+        <section class="exam-card glass">
+          <div class="exam-title"><span>✦</span> 易错提醒</div>
+          <p id="examTip">DNA 复制不使染色体数加倍；染色体数通常按着丝粒（教材常用表述）数量计算。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="compare-card glass">
+      <div class="compare-head"><div><div class="eyebrow">Quick comparison</div><h3>一眼辨清：分谁、分几次、得到谁</h3></div><p>考试图像题先看“同源染色体是否配对”，再看“着丝粒是否分裂”。</p></div>
+      <div class="compare-grid" role="table" aria-label="有丝分裂与减数分裂对比">
+        <div class="th">比较项目</div><div class="th">有丝分裂</div><div class="th">减数分裂</div>
+        <div class="label">复制与分裂次数</div><div>1 次复制，1 次分裂</div><div>1 次复制，连续 2 次分裂</div>
+        <div class="label">核心分离对象</div><div>姐妹染色单体</div><div>减Ⅰ分同源；减Ⅱ分姐妹</div>
+        <div class="label">结果（一般模型）</div><div>2 个与亲代遗传物质基本相同的子细胞</div><div>4 个染色体数减半、遗传组成多样的细胞</div>
+        <div class="label">主要意义</div><div>生长、修复与无性增殖，维持遗传稳定</div><div>形成单倍体细胞，为有性生殖和遗传多样性奠基</div>
+      </div>
+      <div class="same-banner"><strong>共同点：</strong>分裂前都需完成 DNA 复制；都依靠纺锤体牵引染色体，并通过有序分离将遗传物质分配给子细胞。</div>
+    </section>
+
+    <section class="chart-card glass" id="quantityChartSection" aria-labelledby="chartTitle">
+      <div class="chart-head">
+        <div><div class="eyebrow">Quantity curve · 2n = 4</div><h3 id="chartTitle">有丝分裂数量变化</h3></div>
+        <p id="chartSummary">从间期复制前到胞质分裂完成，比较核 DNA、染色体和染色单体的数量。</p>
+      </div>
+      <div class="chart-legend" aria-label="数量曲线图例">
+        <span><i style="background:#8b5cf6"></i>核 DNA（DNA 分子）</span>
+        <span><i style="background:#2785ff"></i>染色体</span>
+        <span><i style="background:#ff4f9a"></i>染色单体</span>
+      </div>
+      <div class="chart-scroll" tabindex="0" aria-label="数量变化图，可横向滚动">
+        <svg id="quantityChart" viewBox="0 0 1120 500" role="img" aria-labelledby="quantityChartTitle quantityChartDesc" preserveAspectRatio="xMidYMid meet">
+          <title id="quantityChartTitle">有丝分裂数量变化图</title>
+          <desc id="quantityChartDesc">横轴表示细胞分裂时期，纵轴以 n 的倍数表示核 DNA、染色体和染色单体的相对数量。</desc>
+          <defs>
+            <linearGradient id="currentStageGlow" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8b5cf6" stop-opacity=".16"/><stop offset="1" stop-color="#8b5cf6" stop-opacity=".02"/></linearGradient>
+            <filter id="chartShadow" x="-20%" y="-30%" width="140%" height="160%"><feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#5965a3" flood-opacity=".16"/></filter>
+          </defs>
+          <g id="quantityChartContent"></g>
+        </svg>
+      </div>
+      <div class="chart-foot"><strong>计数口径</strong><span>以一个染色体组所含的染色体数记为 n，纵轴使用 n 的倍数表示相对数量，不显示具体个数；此处 n 是数量单位，不等同于 DNA 含量的 C 值。末期与胞质分裂完成后按每个子细胞计算。</span></div>
+    </section>
+
+    <details class="references glass" id="references">
+      <summary>教材整合与资料依据</summary>
+      <p>模型以本复习项目中的教材条目为主线：必修1“细胞周期与有丝分裂”强调复制、凝缩、排列、分离与核重建；必修2“减数分裂与受精作用”强调联会、四分体、减Ⅰ同源染色体分离、减Ⅱ姐妹染色单体分离。2n=4 仅用于清晰演示。</p>
+      <div class="reference-links">
+        <a href="https://www.ncbi.nlm.nih.gov/books/NBK9958/" target="_blank" rel="noreferrer">NCBI · M 期事件</a>
+        <a href="https://www.ncbi.nlm.nih.gov/books/NBK9901/" target="_blank" rel="noreferrer">NCBI · 减数分裂与受精</a>
+        <a href="https://www.ncbi.nlm.nih.gov/books/NBK26840/" target="_blank" rel="noreferrer">NCBI · 减数分裂机制</a>
+      </div>
+    </details>
+    <footer>双分裂实验室 · 独立离线模型 · 2026</footer>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    const COLORS = { pink:'#ff4f9a', blue:'#2785ff', violet:'#8b5cf6', cyan:'#24c6df', ink:'#3f4868' };
+
+    const models = {
+      mitosis: {
+        label: 'MITOSIS · 有丝分裂',
+        legend: '颜色只表示来源，长短表示不同染色体',
+        stages: [
+          { short:'间期', title:'间期：DNA 复制', family:'分裂准备', ploidy:'2n', dna:'2C → 4C', cells:'1', badge:'2n · 2C → 4C', hint:'DNA 以染色质形态完成复制', summary:'细胞在 S 期以松散染色质形态复制 DNA；复制完成后，每条染色质对应的 DNA 形成两个相同副本。', focus:'核膜完整，DNA 是伸展的染色质丝；此时不会提前出现清晰的 X 形染色体。', events:['DNA 复制使核 DNA 含量由 2C 增至 4C','复制不改变染色体数，染色质会在前期才逐渐凝缩'], tip:'DNA 复制发生在染色质状态；X 形是复制后染色质进入分裂期并高度凝缩的结果。' },
+          { short:'前期', title:'前期', family:'染色体凝缩', ploidy:'2n', dna:'4C', cells:'1', badge:'2n · 4C', hint:'染色质螺旋化为染色体', summary:'染色质逐渐凝缩为清晰染色体，纺锤体形成，核仁逐渐解体、核膜逐渐消失。', focus:'四条复制后的染色体仍各有一个着丝粒；同源染色体不联会。', events:['每条染色体由两条姐妹染色单体组成','两极之间出现纺锤丝，核膜逐渐解体'], tip:'有丝分裂前期没有同源染色体联会，也不形成四分体。' },
+          { short:'中期', title:'中期', family:'赤道面排列', ploidy:'2n', dna:'4C', cells:'1', badge:'2n · 4C', hint:'着丝粒排列在赤道面', summary:'染色体的着丝粒排列在赤道面中央，染色体形态和数目最清晰。', focus:'染色体是“单列”，每条染色体的两侧分别连接来自两极的纺锤丝。', events:['纺锤丝连接染色体着丝粒区域','是观察和计数染色体的较佳时期'], tip:'“赤道面”是一个空间位置，不是细胞中真实存在的结构。' },
+          { short:'后期', title:'后期', family:'姐妹分离', ploidy:'4n*', dna:'4C', cells:'1', badge:'同一细胞暂为 4n · 4C', hint:'着丝粒分裂，姐妹染色单体分开', summary:'着丝粒分裂，姐妹染色单体分开成为两条子染色体，并在纺锤丝牵引下移向两极。', focus:'着丝粒朝向并领先移向细胞两极，染色体臂拖在后方、朝向赤道面。', events:['每一极都获得一套与亲代相同的染色体','DNA 总量此刻不变，只是被重新分配'], tip:'后期染色体数加倍是着丝粒分裂造成的，不是 DNA 再次复制。' },
+          { short:'末期', title:'末期与胞质分裂', family:'形成两个子细胞', ploidy:'2n', dna:'2C', cells:'2', badge:'每个子细胞 2n · 2C', hint:'染色体解螺旋，核膜重建', summary:'染色体到达两极后逐渐解螺旋为染色质，核膜与核仁重新出现，胞质分裂形成两个子细胞。', focus:'子细胞核内应看到松散染色质而非清晰染色体；遗传物质与亲代基本相同。', events:['染色体解螺旋并恢复为染色质状态','动物细胞常由细胞膜从中部向内缢裂'], tip:'植物细胞胞质分裂通常形成细胞板，动物细胞通常由细胞膜缢裂。' }
+        ]
+      },
+      meiosis: {
+        label: 'MEIOSIS · 减数分裂',
+        legend: '交换片段显示为另一来源的颜色',
+        stages: [
+          { short:'前期Ⅰ', title:'前期Ⅰ：先联会，后交换', family:'减数第一次分裂', ploidy:'2n', dna:'4C', cells:'1', badge:'2n · 4C', hint:'同源染色体先联会，随后发生交换', summary:'进入前期Ⅰ前，DNA 已以染色质形态复制完成；同源染色体先联会配对形成四分体，随后非姐妹染色单体才可能发生片段交换。', focus:'只标记两条同源染色体之间相互靠近的内侧非姐妹染色单体；外侧染色单体不参与本次交换。', events:['同源染色体先联会形成二价体（四分体）','联会完成后，相邻的两条非姐妹染色单体发生交叉互换'], tip:'一次交换只涉及四分体中相互靠近的两条非姐妹染色单体，另外两条保持原样。' },
+          { short:'中期Ⅰ', title:'中期Ⅰ：四分体排列', family:'减数第一次分裂', ploidy:'2n', dna:'4C', cells:'1', badge:'2n · 4C', hint:'同源染色体成对排列', summary:'各对同源染色体排列在赤道面两侧，每一对的朝向相互独立。', focus:'此时是“四分体成对排列”，不是单条染色体排成一列。', events:['同源染色体分别连接两极的纺锤丝','不同同源染色体对的朝向可独立组合'], tip:'非同源染色体自由组合的细胞学基础，与各对同源染色体的独立排列有关。' },
+          { short:'后期Ⅰ', title:'后期Ⅰ：同源分离', family:'减数第一次分裂', ploidy:'2n*', dna:'4C', cells:'1', badge:'分裂进行中 · 2n · 4C', hint:'分同源，不分姐妹', summary:'同源染色体彼此分离并移向两极，姐妹染色单体仍由着丝粒连在一起。', focus:'着丝粒不分裂并领先移向两极，成对的姐妹染色单体及染色体臂拖在后方。', events:['每一极只获得每对同源染色体中的一条','等位基因随同源染色体分开'], tip:'减Ⅰ使染色体组数减半；真正的数量减半在形成两个细胞后体现。' },
+          { short:'末期Ⅰ', title:'末期Ⅰ与胞质分裂', family:'减数第一次分裂完成', ploidy:'n', dna:'2C', cells:'2', badge:'每个细胞 n · 2C', hint:'染色体暂时解螺旋为染色质', summary:'细胞分裂为两个子细胞，染色体可暂时解螺旋为染色质；每个细胞只有一套染色体，但每条仍对应两条姐妹 DNA。', focus:'染色体数已经减半，DNA 含量尚未降到 1C；减Ⅰ与减Ⅱ之间不再复制 DNA。', events:['两个细胞的同源染色体组合可能不同','染色体可暂时松散，随后在前期Ⅱ重新凝缩'], tip:'n 表示只有一套染色体，并不等于每条染色体只含一条染色单体。' },
+          { short:'前期Ⅱ', title:'前期Ⅱ', family:'减数第二次分裂', ploidy:'n', dna:'2C', cells:'2', badge:'每个细胞 n · 2C', hint:'不再复制 DNA，重新形成纺锤体', summary:'两个单倍体细胞分别进入第二次分裂，染色体再次凝缩并建立新的纺锤体。', focus:'没有新的 S 期；减Ⅱ起点的染色体仍由两条姐妹染色单体组成。', events:['两个细胞通常同步或近似同步进入减Ⅱ','分裂方式在染色体行为上类似有丝分裂'], tip:'“减数第二次分裂前没有 DNA 复制”是数量变化题的关键。' },
+          { short:'中期Ⅱ', title:'中期Ⅱ：染色体单列', family:'减数第二次分裂', ploidy:'n', dna:'2C', cells:'2', badge:'每个细胞 n · 2C', hint:'着丝粒排列在各自赤道面', summary:'染色体分别排列在两个细胞的赤道面上，姐妹染色单体连接相反两极。', focus:'现在是染色体“单列”，外观类似有丝分裂中期，但细胞为单倍体。', events:['每个细胞中有两条复制后的染色体','纺锤丝为姐妹染色单体分离做好准备'], tip:'判断中期Ⅱ与有丝分裂中期时，还要结合细胞内是否存在同源染色体。' },
+          { short:'后期Ⅱ', title:'后期Ⅱ：姐妹分离', family:'减数第二次分裂', ploidy:'2n*', dna:'2C', cells:'2', badge:'每个细胞暂为 2n · 2C', hint:'着丝粒分裂，姐妹染色单体分离', summary:'两个细胞中的着丝粒分别分裂，姐妹染色单体成为子染色体并移向两极。', focus:'着丝粒领先移向两极，染色体臂朝向赤道面；若发生过交换，姐妹染色单体可能不再完全相同。', events:['每一极得到每条染色体的一条染色单体','每个细胞内染色体数暂时加倍'], tip:'减Ⅱ后期分离姐妹染色单体；减Ⅰ后期分离同源染色体，二者不可混淆。' },
+          { short:'末期Ⅱ', title:'末期Ⅱ与胞质分裂', family:'减数分裂完成', ploidy:'n', dna:'1C', cells:'4', badge:'每个细胞 n · 1C', hint:'染色体解螺旋为染色质', summary:'染色体解螺旋为染色质，核膜重建并完成胞质分裂，通常形成四个遗传组成可能不同的单倍体细胞。', focus:'最终细胞核内呈松散染色质；另一来源颜色的小片段表示交换后的重组。', events:['一次复制、两次连续分裂最终得到四个细胞','独立组合与交叉互换共同增加遗传多样性'], tip:'动物卵细胞形成时胞质分裂不均等，最终产物大小并不都相同；本模型演示一般过程。' }
+        ]
+      }
+    };
+
+    const quantitySeries = {
+      mitosis: {
+        title:'有丝分裂数量变化',
+        summary:'从间期复制前到胞质分裂完成，比较核 DNA、染色体和染色单体的数量。',
+        labels:['间期初','复制完成','前期','中期','后期','末期'],
+        dna:[4,8,8,8,8,4],
+        chromosome:[4,4,4,4,8,4],
+        chromatid:[0,8,8,8,0,0]
+      },
+      meiosis: {
+        title:'减数分裂数量变化',
+        summary:'一次 DNA 复制后连续分裂两次；减Ⅰ结束数量减半，减Ⅱ后期姐妹染色单体分开。',
+        labels:['复制前','前期Ⅰ','中期Ⅰ','后期Ⅰ','末期Ⅰ','前期Ⅱ','中期Ⅱ','后期Ⅱ','末期Ⅱ'],
+        dna:[4,8,8,8,4,4,4,4,2],
+        chromosome:[4,4,4,4,2,2,2,4,2],
+        chromatid:[0,8,8,8,4,4,4,0,0]
+      }
+    };
+
+    const state = { mode:'mitosis', stage:0, phase:0, playing:true, speed:1, last:performance.now(), variant:0 };
+    const $ = id => document.getElementById(id);
+    const sceneContent = $('sceneContent');
+    const prefersReduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReduced) state.playing = false;
+
+    const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const ease = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
+    const pulse = (p, amount=1) => 1 + Math.sin(p * Math.PI * 2) * .025 * amount;
+    const mix = (a,b,t) => a + (b-a)*ease(Math.max(0,Math.min(1,t)));
+    const f = n => Number(n).toFixed(1);
+    function smoothCurve(points) {
+      if (points.length < 2) return '';
+      let d=`M${f(points[0][0])} ${f(points[0][1])}`;
+      for(let i=0;i<points.length-1;i++){
+        const p0=points[i-1]||points[i], p1=points[i], p2=points[i+1], p3=points[i+2]||p2;
+        const c1=[p1[0]+(p2[0]-p0[0])/6,p1[1]+(p2[1]-p0[1])/6];
+        const c2=[p2[0]-(p3[0]-p1[0])/6,p2[1]-(p3[1]-p1[1])/6];
+        d+=` C${f(c1[0])} ${f(c1[1])} ${f(c2[0])} ${f(c2[1])} ${f(p2[0])} ${f(p2[1])}`;
+      }
+      return d;
+    }
+
+    function cell(cx, cy, rx, ry, opacity=1) {
+      return `<ellipse class="membrane" cx="${f(cx)}" cy="${f(cy)}" rx="${f(rx)}" ry="${f(ry)}" opacity="${opacity}"/>`;
+    }
+    function nucleus(cx, cy, r, opacity=1) { return `<circle class="nucleus" cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}" opacity="${opacity}"/>`; }
+    function pole(x,y) { return `<g filter="url(#softGlow)"><circle class="pole" cx="${f(x)}" cy="${f(y)}" r="8"/><path d="M${f(x-13)} ${f(y)}h26M${f(x)} ${f(y-13)}v26M${f(x-9)} ${f(y-9)}l18 18M${f(x+9)} ${f(y-9)}l-18 18" stroke="#24c6df" stroke-width="2" opacity=".55"/></g>`; }
+    function fiber(x1,y1,x2,y2,opacity=.55) { return `<path class="spindle" d="M${f(x1)} ${f(y1)} Q${f((x1+x2)/2)} ${f((y1+y2)/2-9)} ${f(x2)} ${f(y2)}" opacity="${opacity}"/>`; }
+    function label(x,y,text,anchor='middle',small=false) { return `<text x="${f(x)}" y="${f(y)}" text-anchor="${anchor}" class="${small?'scene-small':'scene-label'}">${esc(text)}</text>`; }
+
+    function xChr(x,y,color,scale=1,rot=0,tipColor='',opacity=1,tipSide='left') {
+      const sw = 13 * scale, h = 36 * scale, w = 18 * scale;
+      const a = `M${f(-w)} ${f(-h)} C${f(-w*1.06)} ${f(-h*.62)} ${f(-w*.54)} ${f(-h*.27)} 0 0 C${f(w*.54)} ${f(h*.27)} ${f(w*1.06)} ${f(h*.62)} ${f(w)} ${f(h)}`;
+      const b = `M${f(w)} ${f(-h)} C${f(w*1.06)} ${f(-h*.62)} ${f(w*.54)} ${f(-h*.27)} 0 0 C${f(-w*.54)} ${f(h*.27)} ${f(-w*1.06)} ${f(h*.62)} ${f(-w)} ${f(h)}`;
+      // 一次交叉互换只标记一条参与交换的染色单体；同一条染色体的另一条姐妹染色单体保持原色。
+      const tipPath=tipSide==='right'
+        ? `M${f(w)} ${f(-h)} C${f(w*1.04)} ${f(-h*.82)} ${f(w*.88)} ${f(-h*.64)} ${f(w*.68)} ${f(-h*.51)}`
+        : `M${f(-w)} ${f(-h)} C${f(-w*1.04)} ${f(-h*.82)} ${f(-w*.88)} ${f(-h*.64)} ${f(-w*.68)} ${f(-h*.51)}`;
+      const tip = tipColor ? `<path d="${tipPath}" stroke="${tipColor}" stroke-width="${f(sw+1)}" class="chromatid exchange-segment" data-tip-side="${tipSide}"/>` : '';
+      return `<g transform="translate(${f(x)} ${f(y)}) rotate(${f(rot)})" opacity="${opacity}"><path d="${a}" stroke="${color}" stroke-width="${f(sw)}" class="chromatid"/><path d="${b}" stroke="${color}" stroke-width="${f(sw)}" class="chromatid"/>${tip}<circle class="centromere" cx="0" cy="0" r="${f(6.2*scale)}" fill="${color}"/></g>`;
+    }
+    function singleChr(x,y,color,scale=1,rot=0,tipColor='',opacity=1) {
+      const sw=12*scale, h=37*scale;
+      const body=`M0 ${f(-h)} C${f(-6*scale)} ${f(-h*.58)} ${f(5*scale)} ${f(-h*.20)} 0 0 C${f(-5*scale)} ${f(h*.20)} ${f(6*scale)} ${f(h*.58)} 0 ${f(h)}`;
+      const tip=tipColor?`<path d="M0 ${f(-h)} C${f(-2*scale)} ${f(-h*.84)} ${f(-3*scale)} ${f(-h*.68)} ${f(-1.5*scale)} ${f(-h*.50)}" stroke="${tipColor}" stroke-width="${f(sw+1)}" class="chromatid"/>`:'';
+      return `<g transform="translate(${f(x)} ${f(y)}) rotate(${f(rot)})" opacity="${opacity}"><path d="${body}" stroke="${color}" stroke-width="${f(sw)}" class="chromatid"/>${tip}<circle class="centromere" cx="0" cy="0" r="${f(5.4*scale)}" fill="${color}"/></g>`;
+    }
+    function chromatin(x,y,color,scale=1,phase=0,opacity=.82) {
+      const pts = Array.from({length:8},(_,i) => [x+(i-3.5)*14*scale, y+Math.sin(i*1.35+phase*6.28)*13*scale]);
+      const d=smoothCurve(pts);
+      return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${f(7*scale)}" opacity="${f(opacity)}" stroke-linecap="round" filter="url(#chromosomeShadow)"/>`;
+    }
+    function recombinedChromatin(x,y,color,tipColor='',scale=1,phase=0,opacity=.82) {
+      const pts = Array.from({length:8},(_,i) => [x+(i-3.5)*14*scale, y+Math.sin(i*1.35+phase*6.28)*13*scale]);
+      const main=`<path d="${smoothCurve(pts)}" fill="none" stroke="${color}" stroke-width="${f(7*scale)}" opacity="${f(opacity)}" stroke-linecap="round" filter="url(#chromosomeShadow)"/>`;
+      const tip=tipColor?`<path d="${smoothCurve(pts.slice(0,3))}" fill="none" stroke="${tipColor}" stroke-width="${f(7.7*scale)}" opacity="${f(opacity)}" stroke-linecap="round"/>`:'';
+      return main+tip;
+    }
+    function replicatingChromatin(x,y,color,scale=1,phase=0,progress=1,opacity=.82) {
+      const separation=7*scale*ease(progress);
+      return chromatin(x,y-separation,color,scale,phase,opacity)+chromatin(x,y+separation,color,scale,phase+.08,opacity*ease(progress));
+    }
+    function movingChr(x,y,color,scale=1,direction=-1,tipColor='',duplicated=false,opacity=1) {
+      const trail=-direction*44*scale, bend=trail*.56, sw=(duplicated?9.5:11.5)*scale;
+      const armYs=duplicated?[-29,-14,14,29]:[-25,25];
+      const paths=armYs.map((armY,index)=>`<path d="M0 ${f((index-(armYs.length-1)/2)*2.4*scale)} C${f(bend*.28)} ${f(armY*scale*.18)} ${f(bend*.72)} ${f(armY*scale*.76)} ${f(trail)} ${f(armY*scale)}" stroke="${color}" stroke-width="${f(sw)}" class="chromatid"/>`).join('');
+      const tip=tipColor?`<path d="M${f(trail)} ${f(armYs[0]*scale)} C${f(trail*.88)} ${f(armYs[0]*scale*.89)} ${f(trail*.75)} ${f(armYs[0]*scale*.72)} ${f(trail*.63)} ${f(armYs[0]*scale*.59)}" stroke="${tipColor}" stroke-width="${f(sw+1)}" class="chromatid"/>`:'';
+      return `<g transform="translate(${f(x)} ${f(y)})" opacity="${f(opacity)}">${paths}${tip}<circle class="centromere" cx="0" cy="0" r="${f((duplicated?7:6)*scale)}" fill="${color}"/></g>`;
+    }
+    function equator(x,y1,y2) { return `<path class="equator" d="M${f(x)} ${f(y1)}V${f(y2)}"/>${label(x+12,y1+14,'赤道面','start',true)}`; }
+
+    function mainCell() { return cell(450,286,315,225); }
+    const chrSet = [
+      {c:COLORS.pink, s:1.12, y:205}, {c:COLORS.blue, s:1.12, y:260},
+      {c:COLORS.pink, s:.78, y:335}, {c:COLORS.blue, s:.78, y:390}
+    ];
+
+    function renderMitosis(i,p) {
+      const e=ease(p), s=pulse(p), out=[];
+      out.push(mainCell());
+      if (i===0) {
+        out.push(nucleus(450,286,148));
+        out.push(replicatingChromatin(404,220,COLORS.pink,.78,p,p),replicatingChromatin(487,246,COLORS.blue,.78,p+.2,p),replicatingChromatin(418,337,COLORS.pink,.61,p+.45,p),replicatingChromatin(493,360,COLORS.blue,.61,p+.7,p));
+        out.push(label(450,463,'DNA 以松散染色质形态复制 · 不形成 X 形染色体'));
+      } else if (i===1) {
+        out.push(nucleus(450,286,148,1-e*.78));
+        const startPos=[[404,220,-18],[487,246,15],[418,337,21],[493,360,-15]], targetY=[190,255,330,390];
+        const pos=startPos.map((q,k)=>[mix(q[0],450,e),mix(q[1],targetY[k],e),mix(q[2],0,e)]);
+        chrSet.forEach((ch,k)=>{
+          if(e<.38) out.push(replicatingChromatin(pos[k][0],pos[k][1],ch.c,ch.s*.64,p+k*.11,1,.82));
+          else out.push(xChr(pos[k][0],pos[k][1],ch.c,ch.s*s,pos[k][2]));
+        });
+        const lx=mix(420,165,e), rx=mix(480,735,e);
+        out.push(pole(lx,286),pole(rx,286));
+        pos.forEach(q=>{out.push(fiber(lx,286,q[0],q[1],.15+.25*e),fiber(rx,286,q[0],q[1],.15+.25*e));});
+        out.push(label(450,465,'染色质凝缩为染色体 · 核膜逐渐消失'));
+      } else if (i===2) {
+        const ys=[190,255,330,390], scales=[1.12,1.12,.78,.78], colors=[COLORS.pink,COLORS.blue,COLORS.pink,COLORS.blue];
+        out.push(equator(450,115,452),pole(155,286),pole(745,286));
+        ys.forEach((y,k)=>{const x=450+Math.sin(p*6.28+k)*2; out.push(fiber(155,286,x,y),fiber(745,286,x,y),xChr(x,y,colors[k],scales[k],0));});
+        out.push(label(450,480,'单条染色体排列 · 着丝粒位于赤道面'));
+      } else if (i===3) {
+        out.push(pole(145,286),pole(755,286));
+        const ys=[190,255,330,390], scales=[1.05,1.05,.76,.76], colors=[COLORS.pink,COLORS.blue,COLORS.pink,COLORS.blue];
+        ys.forEach((y,k)=>{
+          const d=mix(0,215,e);
+          out.push(fiber(145,286,450-d,y),fiber(755,286,450+d,y));
+          out.push(movingChr(450-d,y,colors[k],scales[k],-1),movingChr(450+d,y,colors[k],scales[k],1));
+        });
+        out.push(label(450,480,'着丝粒领先 · 染色体臂朝向赤道面并拖后移动'));
+      } else {
+        const pinch=e;
+        out.length=0;
+        if(e<.04) out.push(mainCell());
+        else out.push(cell(mix(450,285,pinch),286,mix(315,150,pinch),mix(225,190,pinch)),cell(mix(450,615,pinch),286,mix(315,150,pinch),mix(225,190,pinch)));
+        const poleX=[235,665], finalCenters=[285,615], startY=[190,255,330,390], endDx=[-31,31,-27,27], endY=[234,252,322,340];
+        finalCenters.forEach((finalCx,side)=>{
+          const nucleusCx=mix(poleX[side],finalCx,e);
+          out.push(nucleus(nucleusCx,286,mix(8,105,e),1));
+          const colors=[COLORS.pink,COLORS.blue,COLORS.pink,COLORS.blue], scales=[.53,.53,.41,.41];
+          endDx.forEach((v,k)=>{
+            const px=mix(poleX[side],finalCx+v,e), py=mix(startY[k],endY[k],e);
+            if(e<.34) out.push(movingChr(px,py,colors[k],scales[k],side?1:-1));
+            else out.push(chromatin(px,py,colors[k],scales[k],p+k*.18,.88));
+          });
+        });
+        out.push(label(450,508,'核膜重建 · 染色体解螺旋为染色质'));
+      }
+      return out.join('');
+    }
+
+    function tetrad(x,y,long=true,p=1) {
+      const sc=long?1.06:.76;
+      const pairing=Math.max(0,Math.min(1,(p-.08)/.42)), exchange=Math.max(0,Math.min(1,(p-.58)/.28));
+      const gap=mix(58,23,pairing), leftTip=exchange>.12?COLORS.blue:'', rightTip=exchange>.12?COLORS.pink:'', crossY=y-20*sc;
+      const contact=`<g class="exchange-contact" data-kind="adjacent-non-sister" opacity="${f(exchange)}"><path d="M${f(x-12*sc)} ${f(crossY-7*sc)} C${f(x-4*sc)} ${f(crossY-4*sc)} ${f(x+4*sc)} ${f(crossY+4*sc)} ${f(x+12*sc)} ${f(crossY+7*sc)}" fill="none" stroke="${COLORS.pink}" stroke-width="${f(4.5*sc)}" stroke-linecap="round"/><path d="M${f(x-12*sc)} ${f(crossY+7*sc)} C${f(x-4*sc)} ${f(crossY+4*sc)} ${f(x+4*sc)} ${f(crossY-4*sc)} ${f(x+12*sc)} ${f(crossY-7*sc)}" fill="none" stroke="${COLORS.blue}" stroke-width="${f(4.5*sc)}" stroke-linecap="round"/><circle cx="${x}" cy="${f(crossY)}" r="9" fill="none" stroke="#ffd45a" stroke-width="4"/></g>`;
+      return xChr(x-gap,y,COLORS.pink,sc,-5,leftTip,1,'right')+xChr(x+gap,y,COLORS.blue,sc,5,rightTip,1,'left')+contact;
+    }
+    function daughterCells() { return cell(285,286,145,205)+cell(615,286,145,205); }
+    function meiosisFinalChromatin(cx,cy,index,progress=1,opacity=1) {
+      const swap=state.variant%2;
+      const longColors=[COLORS.pink,COLORS.pink,COLORS.blue,COLORS.blue];
+      const shortColors=swap?[COLORS.pink,COLORS.pink,COLORS.blue,COLORS.blue]:[COLORS.blue,COLORS.blue,COLORS.pink,COLORS.pink];
+      const longTip=index===0||index===2?(longColors[index]===COLORS.pink?COLORS.blue:COLORS.pink):'';
+      const shortTip=index===1||index===3?(shortColors[index]===COLORS.pink?COLORS.blue:COLORS.pink):'';
+      const longX=mix(cx,cx-18,progress), longY=mix(235,cy-15,progress), shortX=mix(cx,cx+18,progress), shortY=mix(345,cy+15,progress);
+      return recombinedChromatin(longX,longY,longColors[index],longTip,.48,index*.17,opacity*.86)+recombinedChromatin(shortX,shortY,shortColors[index],shortTip,.37,index*.19+.2,opacity*.86);
+    }
+
+    function renderMeiosis(i,p) {
+      const e=ease(p), out=[];
+      if (i<=2) out.push(mainCell());
+      if (i===0) {
+        out.push(nucleus(450,286,172,1-e*.45));
+        out.push(tetrad(350,220,true,p),tetrad(550,355,false,p));
+        out.push(label(450,478,p<.58?'同源染色体先联会配对 · 形成两个错位的四分体':'联会完成后 · 非姐妹染色单体再发生交叉互换'));
+        if(p>.58) out.push(`<path class="callout-line" d="M282 150L350 199"/>${label(276,145,'相邻非姐妹染色单体交换','end')}`);
+      } else if (i===1) {
+        out.push(equator(450,110,454),pole(150,286),pole(750,286));
+        [[220,215,350,true],[355,355,550,false]].forEach(([startY,endY,startCenter,isLong])=>{
+          const sc=isLong?1.06:.76, pair=state.variant%2&&!isLong?[COLORS.blue,COLORS.pink]:[COLORS.pink,COLORS.blue];
+          const center=mix(startCenter,450,e), gap=mix(23,25,e), y=mix(startY,endY,e), lx=center-gap, rx=center+gap;
+          out.push(fiber(150,286,lx,y),fiber(750,286,rx,y),xChr(lx,y,pair[0],sc,-3,pair[0]===COLORS.pink?COLORS.blue:COLORS.pink,1,'right'),xChr(rx,y,pair[1],sc,3,pair[1]===COLORS.pink?COLORS.blue:COLORS.pink,1,'left'));
+        });
+        out.push(label(450,480,'同源染色体成对排列 · 朝向可独立组合'));
+      } else if (i===2) {
+        out.push(pole(145,286),pole(755,286));
+        const d=mix(25,205,e), swap=state.variant%2;
+        const left=[COLORS.pink,swap?COLORS.pink:COLORS.blue], right=[COLORS.blue,swap?COLORS.blue:COLORS.pink];
+        const ys=[215,355], sc=[1.06,.76];
+        ys.forEach((y,k)=>{
+          out.push(fiber(145,286,450-d,y),fiber(755,286,450+d,y));
+          out.push(movingChr(450-d,y,left[k],sc[k],-1,left[k]===COLORS.pink?COLORS.blue:COLORS.pink,true),movingChr(450+d,y,right[k],sc[k],1,right[k]===COLORS.pink?COLORS.blue:COLORS.pink,true));
+        });
+        out.push(label(450,480,'分同源染色体 · 着丝粒领先，染色体臂拖后'));
+      } else if (i===3 || i===4 || i===5 || i===6) {
+        const centers=[285,615], swap=state.variant%2;
+        const sets=[
+          [COLORS.pink,swap?COLORS.pink:COLORS.blue],
+          [COLORS.blue,swap?COLORS.blue:COLORS.pink]
+        ];
+        if(i===3) {
+          if(e<.04) out.push(mainCell());
+          else out.push(cell(mix(450,285,e),286,mix(315,145,e),mix(225,205,e)),cell(mix(450,615,e),286,mix(315,145,e),mix(225,205,e)));
+          centers.forEach((cx,j)=>{
+            const poleX=j?655:245, longX=mix(poleX,cx-20,e), shortX=mix(poleX,cx+20,e), longY=mix(215,235,e), shortY=mix(355,345,e);
+            out.push(nucleus(mix(poleX,cx,e),286,mix(8,98,e),1));
+            if(e<.34){
+              out.push(movingChr(longX,longY,sets[j][0],.72,j?1:-1,sets[j][0]===COLORS.pink?COLORS.blue:COLORS.pink,true));
+              out.push(movingChr(shortX,shortY,sets[j][1],.54,j?1:-1,sets[j][1]===COLORS.pink?COLORS.blue:COLORS.pink,true));
+            }else{
+              out.push(replicatingChromatin(longX,longY,sets[j][0],.50,p+j*.12,1,.84),replicatingChromatin(shortX,shortY,sets[j][1],.39,p+j*.16+.2,1,.84));
+            }
+          });
+          out.push(label(450,512,'末期Ⅰ · 染色体暂时解螺旋为染色质'));
+        } else if(i===4) {
+          out.push(daughterCells());
+          centers.forEach((cx,j)=>{
+            const spread=mix(15,58,e);out.push(nucleus(cx,286,98,1-e*.75),pole(cx-spread,286),pole(cx+spread,286));
+            if(e<.38) out.push(replicatingChromatin(cx-20,235,sets[j][0],.48,p+j*.1,1,.82),replicatingChromatin(cx+20,345,sets[j][1],.37,p+j*.16,1,.82));
+            else out.push(xChr(cx-20,235,sets[j][0],.82,-8,sets[j][0]===COLORS.pink?COLORS.blue:COLORS.pink),xChr(cx+20,345,sets[j][1],.62,8,sets[j][1]===COLORS.pink?COLORS.blue:COLORS.pink));
+          });
+          out.push(label(450,512,'不再复制 DNA · 染色质重新凝缩并建立纺锤体'));
+        } else if(i===5) {
+          out.push(daughterCells());
+          centers.forEach((cx,j)=>{out.push(equator(cx,125,450),pole(cx-115,286),pole(cx+115,286));[[235,.82,sets[j][0],-20],[345,.62,sets[j][1],20]].forEach(([y,sc,c,startDx])=>{const x=mix(cx+startDx,cx,e);out.push(fiber(cx-115,286,x,y),fiber(cx+115,286,x,y),xChr(x,y,c,sc,0,c===COLORS.pink?COLORS.blue:COLORS.pink));});});
+          out.push(label(450,512,'染色体单列在各自赤道面'));
+        } else {
+          out.push(daughterCells());
+          centers.forEach((cx,j)=>{
+            out.push(pole(cx-120,286),pole(cx+120,286));
+            [[235,.78,sets[j][0]],[345,.58,sets[j][1]]].forEach(([y,sc,c],k)=>{
+              const d=mix(0,78,e), tip=c===COLORS.pink?COLORS.blue:COLORS.pink;
+              out.push(fiber(cx-120,286,cx-d,y),fiber(cx+120,286,cx+d,y),movingChr(cx-d,y,c,sc,-1,tip),movingChr(cx+d,y,c,sc,1,k?tip:''));
+            });
+          });
+          out.push(label(450,512,'分姐妹染色单体 · 着丝粒领先，染色体臂拖后'));
+        }
+      } else {
+        const centers=[[207,286],[363,286],[537,286],[693,286]];
+        centers.forEach(([cx,cy],k)=>{out.push(cell(cx,cy,mix(20,70,e),mix(55,170,e)),nucleus(cx,cy,mix(8,56,e),1),meiosisFinalChromatin(cx,cy,k,e,1));});
+        out.push(label(450,520,'末期Ⅱ · 染色体解螺旋为染色质，形成四个 n · 1C 细胞'));
+      }
+      return out.join('');
+    }
+
+    function renderModeScene(mode,stage,phase) {
+      const p=Math.max(0,Math.min(1,phase));
+      return mode==='mitosis'?renderMitosis(stage,p):renderMeiosis(stage,p);
+    }
+    function renderScene() {
+      sceneContent.innerHTML=renderModeScene(state.mode,state.stage,state.phase);
+    }
+
+    function renderQuantityChart() {
+      const data=quantitySeries[state.mode], root=$('quantityChartContent');
+      const W=1120, H=500, left=76, right=34, top=66, bottom=92, yMax=8;
+      const plotW=W-left-right, plotH=H-top-bottom, step=plotW/(data.labels.length-1);
+      const x=i=>left+i*step, y=v=>top+plotH-(v/yMax)*plotH;
+      const current=Math.min(data.labels.length-1,state.stage+1);
+      const currentX=x(current), band=Math.min(step*.68,118);
+      const relative=v=>v===0?'0':v===2?'n':`${v/2}n`;
+      const rows=[
+        {key:'dna',name:'核 DNA',color:COLORS.violet,offset:-5,shape:'circle'},
+        {key:'chromosome',name:'染色体',color:COLORS.blue,offset:0,shape:'square'},
+        {key:'chromatid',name:'染色单体',color:COLORS.pink,offset:5,shape:'diamond'}
+      ];
+      const out=[];
+      out.push(`<rect x="${f(currentX-band/2)}" y="38" width="${f(band)}" height="${f(plotH+49)}" rx="18" fill="url(#currentStageGlow)"/>`);
+      [0,2,4,8].forEach(value=>{
+        out.push(`<line class="chart-grid-line" x1="${left}" y1="${f(y(value))}" x2="${W-right}" y2="${f(y(value))}"/>`);
+        out.push(`<text class="chart-axis-text" x="${left-17}" y="${f(y(value)+4)}" text-anchor="end">${relative(value)}</text>`);
+      });
+      out.push(`<line class="chart-axis" x1="${left}" y1="${top}" x2="${left}" y2="${top+plotH}"/><line class="chart-axis" x1="${left}" y1="${top+plotH}" x2="${W-right}" y2="${top+plotH}"/>`);
+      out.push(`<text class="chart-axis-text" x="19" y="${f(top+plotH/2)}" text-anchor="middle" transform="rotate(-90 19 ${f(top+plotH/2)})">相对数量</text>`);
+      out.push(`<text class="chart-current-label" x="${f(currentX)}" y="29" text-anchor="middle">当前 · ${esc(data.labels[current])}</text>`);
+      data.labels.forEach((name,i)=>{
+        out.push(`<line class="chart-grid-line" x1="${f(x(i))}" y1="${top+plotH}" x2="${f(x(i))}" y2="${top+plotH+8}"/>`);
+        out.push(`<text class="chart-stage-text" x="${f(x(i))}" y="${top+plotH+31}" text-anchor="middle">${esc(name)}</text>`);
+      });
+      rows.forEach(row=>{
+        const points=data[row.key].map((value,i)=>[x(i)+row.offset,y(value)]);
+        const d=points.map((p,i)=>(i?'L':'M')+f(p[0])+' '+f(p[1])).join(' ');
+        out.push(`<path class="chart-path" d="${d}" stroke="${row.color}"/>`);
+        points.forEach((p,i)=>{
+          if(row.shape==='circle') out.push(`<circle cx="${f(p[0])}" cy="${f(p[1])}" r="6.5" fill="white" stroke="${row.color}" stroke-width="4"/>`);
+          else if(row.shape==='square') out.push(`<rect x="${f(p[0]-6)}" y="${f(p[1]-6)}" width="12" height="12" rx="4" fill="white" stroke="${row.color}" stroke-width="4"/>`);
+          else out.push(`<path d="M${f(p[0])} ${f(p[1]-8)}L${f(p[0]+7)} ${f(p[1])}L${f(p[0])} ${f(p[1]+8)}L${f(p[0]-7)} ${f(p[1])}Z" fill="white" stroke="${row.color}" stroke-width="4" stroke-linejoin="round"/>`);
+        });
+      });
+      const currentValues=rows.map(r=>`${r.name} ${relative(data[r.key][current])}`).join('　');
+      out.push(`<rect x="${left}" y="${H-43}" width="${plotW}" height="28" rx="12" fill="rgba(255,255,255,.72)"/><text class="chart-value" x="${W/2}" y="${H-24}" text-anchor="middle" fill="#4d5575">${esc(currentValues)}</text>`);
+      root.innerHTML=out.join('');
+      $('chartTitle').textContent=data.title;
+      $('chartSummary').textContent=data.summary;
+      $('quantityChartTitle').textContent=data.title+'图';
+      $('quantityChartDesc').textContent=`横轴为${data.labels.join('、')}，纵轴为以 n 表示的相对数量；当前显示${data.labels[current]}。${currentValues}`;
+    }
+
+    function updateUI(rebuildTimeline=false) {
+      const model=models[state.mode], st=model.stages[state.stage], total=model.stages.length;
+      $('modeLabel').textContent=model.label;
+      $('stageTitleTop').textContent=st.title;
+      $('ploidyBadge').textContent=st.badge;
+      $('cellBadge').textContent=st.cells+' 个细胞';
+      $('sceneHint').textContent=st.hint;
+      $('phaseFamily').textContent=st.family;
+      $('stageIndex').textContent=`阶段 ${state.stage+1} / ${total}`;
+      $('stageTitle').textContent=st.title;
+      $('stageSummary').textContent=st.summary;
+      $('stageFocus').textContent=st.focus;
+      $('eventList').innerHTML=st.events.map(x=>`<li>${esc(x)}</li>`).join('');
+      $('examTip').textContent=st.tip;
+      $('qPloidy').textContent=st.ploidy;
+      $('qDNA').textContent=st.dna;
+      $('qCells').textContent=st.cells;
+      $('progressName').textContent=st.short;
+      $('progressCount').textContent=`${String(state.stage+1).padStart(2,'0')} / ${String(total).padStart(2,'0')}`;
+      $('legendNote').textContent=model.legend;
+      $('shuffleBtn').hidden=state.mode!=='meiosis';
+      $('playBtn').textContent=state.playing?'Ⅱ':'▶';
+      $('playBtn').setAttribute('aria-label',state.playing?'暂停动画':'播放动画');
+      $('progress').value=Math.round(((state.stage+state.phase)/total)*1000);
+      $('sceneTitle').textContent=st.title+'动画';
+      $('sceneDesc').textContent=st.summary+' '+st.focus;
+      $('modelPanel').setAttribute('aria-labelledby',state.mode+'Tab');
+      document.querySelectorAll('[data-mode]').forEach(btn=>btn.setAttribute('aria-selected',String(btn.dataset.mode===state.mode)));
+      if(rebuildTimeline) buildTimeline(); else document.querySelectorAll('.stage-button').forEach((b,k)=>b.classList.toggle('active',k===state.stage));
+      renderScene();
+      renderQuantityChart();
+    }
+
+    function buildTimeline() {
+      const model=models[state.mode];
+      $('timeline').innerHTML=model.stages.map((s,i)=>`<button class="stage-button ${i===state.stage?'active':''}" data-stage="${i}" aria-label="查看${esc(s.title)}"><span>${String(i+1).padStart(2,'0')}</span><strong>${esc(s.short)}</strong></button>`).join('');
+      document.querySelectorAll('.stage-button').forEach(btn=>btn.addEventListener('click',()=>goTo(+btn.dataset.stage,true)));
+    }
+    function goTo(index,user=false) {
+      const total=models[state.mode].stages.length;
+      const target=(index+total)%total;
+      state.stage=target; state.phase=0;
+      if(user) state.playing=false;
+      updateUI();
+      document.querySelector('.stage-button.active')?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+    }
+    function setMode(mode) {
+      if(mode===state.mode) return;
+      state.mode=mode; state.stage=0; state.phase=0; state.playing=!prefersReduced;
+      updateUI(true);
+      toast(mode==='mitosis'?'切换到有丝分裂：分姐妹，染色体数保持':'切换到减数分裂：减Ⅰ分同源，减Ⅱ分姐妹');
+    }
+    function toast(text) {
+      const t=$('toast'); t.textContent=text; t.classList.add('show'); clearTimeout(toast.timer); toast.timer=setTimeout(()=>t.classList.remove('show'),1900);
+    }
+
+    document.querySelectorAll('[data-mode]').forEach(btn=>btn.addEventListener('click',()=>setMode(btn.dataset.mode)));
+    $('prevBtn').addEventListener('click',()=>goTo(state.stage-1,true));
+    $('nextBtn').addEventListener('click',()=>goTo(state.stage+1,true));
+    $('playBtn').addEventListener('click',()=>{state.playing=!state.playing;state.last=performance.now();updateUI();});
+    $('progress').addEventListener('input',e=>{
+      const total=models[state.mode].stages.length, raw=(+e.target.value/1000)*total;
+      state.stage=Math.min(total-1,Math.floor(raw)); state.phase=Math.min(.999,raw-state.stage); state.playing=false; updateUI();
+    });
+    document.querySelectorAll('[data-speed]').forEach(btn=>btn.addEventListener('click',()=>{
+      state.speed=+btn.dataset.speed;
+      document.querySelectorAll('[data-speed]').forEach(b=>b.classList.toggle('active',b===btn));
+      toast(`播放速度 ${btn.textContent}`);
+    }));
+    $('shuffleBtn').addEventListener('click',()=>{state.variant++;state.phase=.72;renderScene();toast('同源染色体朝向已重排：展示另一种独立组合');});
+    $('sourceJump').addEventListener('click',()=>{const d=$('references');d.open=true;d.scrollIntoView({behavior:'smooth',block:'center'});});
+    document.addEventListener('keydown',e=>{
+      if(e.target.matches('input,button,a,summary')) return;
+      if(e.key===' '){e.preventDefault();state.playing=!state.playing;updateUI();}
+      if(e.key==='ArrowLeft')goTo(state.stage-1,true);
+      if(e.key==='ArrowRight')goTo(state.stage+1,true);
+    });
+
+    function loop(now) {
+      const dt=Math.min(60,now-state.last); state.last=now;
+      if(state.playing){
+        const duration=3900/state.speed;
+        state.phase+=dt/duration;
+        if(state.phase>=1){state.phase=0;state.stage=(state.stage+1)%models[state.mode].stages.length;updateUI();}
+        else {renderScene();$('progress').value=Math.round(((state.stage+state.phase)/models[state.mode].stages.length)*1000);}
+      }
+      requestAnimationFrame(loop);
+    }
+
+    buildTimeline(); updateUI(); requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+.lesson-model-focus {
+  scroll-margin-top: 128px;
+  margin: 4px 0 52px;
+  padding: 28px;
+  border: 1px solid #d5dfd8;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #eef5ee 0%, #f8f5ed 72%);
+}
+
+.lesson-model-focus.featured {
+  border-color: #e3c77f;
+  box-shadow: 0 18px 46px rgba(59, 76, 55, .12);
+  background: linear-gradient(135deg, #edf5e9 0%, #fff7e5 100%);
+}
+
+.lesson-model-heading {
+  max-width: 760px;
+}
+
+.lesson-model-heading h2 {
+  margin: 8px 0 10px;
+  font-family: STSong, "Songti SC", serif;
+  font-size: 30px;
+  font-weight: 500;
+}
+
+.lesson-model-heading p {
+  margin: 0;
+  color: #61736a;
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.lesson-model-focus .model-lab {
+  margin-top: 20px;
+}
+
+.stage-explanation {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 24px;
+  padding: 18px 20px 22px;
+  background: #f4fafc;
+  border-bottom: 1px solid #dce9ee;
+}
+
+.stage-explanation span {
+  display: block;
+  margin-bottom: 5px;
+  color: #337795;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.stage-explanation p {
+  margin: 0;
+  color: #365563;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.stage-explanation > strong {
+  align-self: center;
+  color: #4d96ff;
+  font: 20px Georgia, serif;
+  white-space: nowrap;
+}
+
+.stage-explanation > i {
+  position: absolute;
+  right: 20px;
+  bottom: 10px;
+  left: 20px;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #dce8ed;
+}
+
+.stage-explanation > i > b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #4d96ff, #47d7a5);
+  transition: width .35s ease;
+}
+
+.model-controls .play-control {
+  min-width: 106px;
+}
+
+.lesson-card-foot b {
+  padding: 3px 6px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.model-controls .step-control:disabled {
+  cursor: not-allowed;
+  opacity: .38;
+}
+
+@media (max-width: 680px) {
+  .lesson-model-focus { margin-right: -8px; margin-left: -8px; padding: 14px; }
+  .lesson-model-heading h2 { font-size: 25px; }
+  .stage-explanation { grid-template-columns: 1fr; }
+  .stage-explanation > strong { display: none; }
+  .model-controls .compare-chip { width: 100%; margin-left: 0; }
+}
